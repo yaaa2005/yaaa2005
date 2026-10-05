@@ -78,6 +78,8 @@ class ServerTests(unittest.TestCase):
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
         self.assertIn("live on this computer", response.text)
+        self.assertIn("form.composer[hidden]", response.text)
+        self.assertIn('id="composer" hidden', response.text)
 
     def test_status_without_key(self) -> None:
         with patch.object(config, "is_configured", return_value=False):
