@@ -54,15 +54,20 @@ class GrokClient:
             ) from None
         except TimeoutError:
             raise GrokError(f"The request timed out after {self.timeout:g}s.") from None
+        except OSError as error:  # socket-level failures on older Pythons
+            raise GrokError(f"Network error talking to {self.base_url}: {error}") from None
 
     def stream_chat(self, messages: Sequence[Message]) -> Iterator[str]:
         """Yield answer fragments as the model produces them."""
         payload = {"model": self.model, "messages": list(messages), "stream": True}
         response = self._request("/chat/completions", payload, method="POST")
         with response:
-            for chunk in _iter_sse_data(response):
-                for delta in _deltas(chunk):
-                    yield delta
+            try:
+                for chunk in _iter_sse_data(response):
+                    for delta in _deltas(chunk):
+                        yield delta
+            except OSError as error:
+                raise GrokError(f"The answer was cut short: {error}") from None
 
     def chat(self, messages: Sequence[Message]) -> str:
         """Return the complete answer in one call."""
