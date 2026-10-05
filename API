@@ -1,8 +1,6 @@
+import os
 from pyowm import OWM
-API_KEY ='58e6677db97e31312b6088322590af41'
+API_KEY = os.environ.get('OWM_API_KEY') or '58e6677db97e31312b6088322590af41'
 owm = OWM(API_KEY)
 observation=owm.weather_at_place('Amman,jo')
 w = observation.get_weather()
- 
- 
- 
