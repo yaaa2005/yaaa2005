@@ -7,12 +7,19 @@ It talks to the [xAI API](https://console.x.ai/) over HTTPS, so the only thing
 running on your machine is this folder of Python files. Your key stays on your
 machine in a local `.env` file.
 
-## Run it in three steps
+## Run it in four steps
 
-1. **Get a key.** Sign in at [console.x.ai](https://console.x.ai/), create an API
+1. **Get the files onto your machine.**
+
+```bash
+git clone https://github.com/yaaa2005/yaaa2005.git
+cd yaaa2005/grok-bot
+```
+
+2. **Get a key.** Sign in at [console.x.ai](https://console.x.ai/), create an API
    key, and copy it.
 
-2. **Save the key next to the bot.** Copy `.env.example` to `.env` and put your
+3. **Save the key next to the bot.** Copy `.env.example` to `.env` and put your
    key in it:
 
 ```bash
@@ -20,7 +27,7 @@ cp .env.example .env
 # then edit .env so the first line reads XAI_API_KEY=xai-...
 ```
 
-3. **Start chatting.**
+4. **Start chatting.**
 
 ```bash
 ./run.sh            # macOS / Linux
@@ -62,7 +69,7 @@ echo "fix this error: $(cat error.txt)" | ./run.sh       # pipe text in
 ```
 
 Without `run.sh` the bot is just a Python module, so `python3 -m grokbot` works
-the same way from this folder.
+the same way from inside this `grok-bot` folder.
 
 ## Commands inside a chat
 
@@ -91,8 +98,8 @@ Set these in `.env` or in your shell. Command-line flags win over both.
 
 ## If something goes wrong
 
-- **"No API key found"** — `.env` is missing, is not in the folder you ran the
-  bot from, or the line is not exactly `XAI_API_KEY=your-key`.
+- **"No API key found"** — `.env` is missing, is not in the `grok-bot` folder you
+  ran the bot from, or the line is not exactly `XAI_API_KEY=your-key`.
 - **"The API rejected your key"** — the key is wrong, revoked, or belongs to a
   different xAI account.
 - **"Model or endpoint not found"** — your key has no access to that model. Run
