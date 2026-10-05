@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Grok — on this computer</title>
+  <style>
+    :root {
+      --bg: #101214;
+      --panel: #181b1f;
+      --line: #2a2f36;
+      --text: #f3efe6;
+      --muted: #9aa3ad;
+      --accent: #f4b942;
+      --live: #3dd68c;
+      --danger: #ff6b6b;
+      --user: #243044;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font: 16px/1.45 "Segoe UI", system-ui, sans-serif;
+    }
+    body {
+      display: flex;
+      flex-direction: column;
+      min-height: 100%;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel);
+    }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; }
+    .dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--live); box-shadow: 0 0 10px var(--live);
+    }
+    .meta { color: var(--muted); font-size: 13px; }
+    main { flex: 1; display: flex; flex-direction: column; max-width: 860px; width: 100%; margin: 0 auto; padding: 16px; }
+    #log {
+      flex: 1;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 8px 0 16px;
+    }
+    .bubble {
+      max-width: 85%;
+      padding: 10px 14px;
+      border-radius: 14px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .bubble.user { align-self: flex-end; background: var(--user); }
+    .bubble.assistant { align-self: flex-start; background: var(--panel); border: 1px solid var(--line); }
+    .bubble.error { background: #3a1d1d; color: #ffd7d7; }
+    form.composer {
+      display: flex;
+      gap: 8px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--panel);
+    }
+    textarea {
+      flex: 1;
+      resize: none;
+      min-height: 48px;
+      max-height: 160px;
+      background: transparent;
+      color: var(--text);
+      border: 0;
+      outline: none;
+      font: inherit;
+    }
+    button {
+      background: var(--accent);
+      color: #1a1408;
+      border: 0;
+      border-radius: 10px;
+      padding: 0 16px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    button:disabled { opacity: 0.5; cursor: default; }
+    #setup {
+      display: none;
+      margin: 24px 0;
+      padding: 20px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+    }
+    #setup h1 { margin: 0 0 8px; font-size: 22px; }
+    #setup ol { color: var(--muted); }
+    #setup input {
+      width: 100%;
+      margin: 12px 0;
+      padding: 12px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: #0e1013;
+      color: var(--text);
+      font: inherit;
+    }
+    .hint { color: var(--danger); min-height: 1.2em; }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand"><span class="dot"></span> Grok — live on this computer</div>
+    <div class="meta" id="meta">Checking…</div>
+  </header>
+  <main>
+    <section id="setup">
+      <h1>Connect your Grok key</h1>
+      <p>This chat runs on <strong>your computer</strong> (localhost). It is not a virtual machine. You need an xAI API key so messages can go to Grok.</p>
+      <ol>
+        <li>Open <a href="https://console.x.ai/" target="_blank" rel="noreferrer">console.x.ai</a> and create an API key.</li>
+        <li>Paste it below. It is saved only in a local <code>.env</code> file on this computer.</li>
+      </ol>
+      <input id="apiKey" type="password" placeholder="xai-…" autocomplete="off" />
+      <button type="button" id="saveKey">Save key and start chatting</button>
+      <p class="hint" id="setupError"></p>
+    </section>
+    <div id="log" hidden></div>
+    <form class="composer" id="composer" hidden>
+      <textarea id="prompt" placeholder="Message Grok…" rows="2" dir="auto"></textarea>
+      <button type="submit" id="send">Send</button>
+    </form>
+  </main>
+  <script>
+    const log = document.getElementById("log");
+    const composer = document.getElementById("composer");
+    const setup = document.getElementById("setup");
+    const meta = document.getElementById("meta");
+    const promptEl = document.getElementById("prompt");
+    const sendBtn = document.getElementById("send");
+    const messages = [];
+
+    function addBubble(role, text) {
+      const el = document.createElement("div");
+      el.className = "bubble " + role;
+      el.dir = "auto";
+      el.textContent = text;
+      log.appendChild(el);
+      log.scrollTop = log.scrollHeight;
+      return el;
+    }
+
+    async function refreshStatus() {
+      const res = await fetch("/api/status");
+      const data = await res.json();
+      meta.textContent = data.configured
+        ? `${data.model} · ${data.host}`
+        : "Needs API key · this computer";
+      setup.style.display = data.configured ? "none" : "block";
+      log.hidden = !data.configured;
+      composer.hidden = !data.configured;
+      return data;
+    }
+
+    document.getElementById("saveKey").onclick = async () => {
+      const err = document.getElementById("setupError");
+      err.textContent = "";
+      const api_key = document.getElementById("apiKey").value.trim();
+      const res = await fetch("/api/setup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ api_key }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        err.textContent = data.detail || "Could not save key.";
+        return;
+      }
+      await refreshStatus();
+      promptEl.focus();
+    };
+
+    composer.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const text = promptEl.value.trim();
+      if (!text) return;
+      promptEl.value = "";
+      addBubble("user", text);
+      messages.push({ role: "user", content: text });
+      const bot = addBubble("assistant", "");
+      sendBtn.disabled = true;
+      try {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messages }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          bot.classList.add("error");
+          bot.textContent = data.detail || "Chat request failed.";
+          return;
+        }
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let reply = "";
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const parts = buffer.split("\n\n");
+          buffer = parts.pop();
+          for (const part of parts) {
+            const line = part.trim();
+            if (!line.startsWith("data:")) continue;
+            const payload = JSON.parse(line.slice(5).trim());
+            if (payload.error) {
+              bot.classList.add("error");
+              bot.textContent = payload.error;
+              reply = "";
+              break;
+            }
+            if (payload.text) {
+              reply += payload.text;
+              bot.textContent = reply;
+              log.scrollTop = log.scrollHeight;
+            }
+          }
+        }
+        if (reply) messages.push({ role: "assistant", content: reply });
+      } catch (exc) {
+        bot.classList.add("error");
+        bot.textContent = String(exc);
+      } finally {
+        sendBtn.disabled = false;
+        promptEl.focus();
+      }
+    });
+
+    promptEl.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        composer.requestSubmit();
+      }
+    });
+
+    refreshStatus();
+  </script>
+</body>
+</html>
